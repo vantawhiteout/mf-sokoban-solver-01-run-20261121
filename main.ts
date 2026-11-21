@@ -11,11 +11,16 @@
 // frozen 2x2 blocks. Everything is deterministic -- fixed direction order, sorted boxes, no clock and no randomness --
 // so the two grading executions produce byte-identical answers.
 
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const INPUT_DIR = process.env.MAKEFUN_INPUT_DIR ?? '/input';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+
+// The grader collects /output as a different user than the one that runs this program, so every file and
+// directory we create there must be readable by everyone. Do not depend on an inherited umask: set one
+// explicitly and fix up the modes of the paths we write, so the answer is collected on every run.
+process.umask(0o022);
 
 // u, d, l, r: [dx, dy, walk letter, push letter].
 const DIRS = [
@@ -362,5 +367,8 @@ for (const id of readdirSync(INPUT_DIR).sort()) {
   const moves = solveLevel(level);
   const outDir = join(OUTPUT_DIR, id);
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, 'solution.txt'), `${moves}\n`);
+  chmodSync(outDir, 0o755);
+  const solution = join(outDir, 'solution.txt');
+  writeFileSync(solution, `${moves}\n`);
+  chmodSync(solution, 0o644);
 }

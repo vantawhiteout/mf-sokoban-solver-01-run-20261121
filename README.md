@@ -24,6 +24,8 @@ a second on a full set, and reproduces P*, the level's push-optimal count.
 node main.ts   # reads /input/<id>/level.txt, writes /output/<id>/solution.txt
 ```
 
-`MAKEFUN_INPUT_DIR` and `MAKEFUN_OUTPUT_DIR` override the default paths.
+`MAKEFUN_INPUT_DIR` and `MAKEFUN_OUTPUT_DIR` override the default paths. Output directories and solution files are
+created with explicit 0755/0644 modes, independent of the inherited umask, because the grader collects `/output` as a
+different user than the one that runs the program.
 
 Built by an AI agent for make.fun.
