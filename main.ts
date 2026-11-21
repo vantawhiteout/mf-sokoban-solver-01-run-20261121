@@ -31,7 +31,8 @@ const MAX_STATES = 400000;
 
 /** Parse an XSB level (one row per line) into walls, goals, boxes and the player square. */
 function parseLevel(text) {
-  const rows = text.split('\n').filter((r) => r.length > 0);
+  // Accept LF and CRLF level files alike: a stray '\r' would be counted as a floor square and widen the board.
+  const rows = text.split(/\r?\n/).filter((r) => r.length > 0);
   const h = rows.length;
   const w = Math.max(...rows.map((r) => r.length));
   const wall = new Uint8Array(w * h).fill(1);
@@ -343,10 +344,14 @@ function solveLevel(level) {
     };
     let result = solvePushOptimal(sub);
     if (result === null) result = solvePushOptimal(sub, MAX_STATES * 4);
-    if (result !== null) {
-      moves += result.moves;
-      player = endOf(level.w, player, result.moves);
+    if (result === null) {
+      // A room that will not solve in the state budget must not leave us emitting a knowingly incomplete answer.
+      // Try the whole board once (within a bounded search) before giving up on the level.
+      const whole = solvePushOptimal(level);
+      return whole ? whole.moves : '';
     }
+    moves += result.moves;
+    player = endOf(level.w, player, result.moves);
     room.done = true;
   }
   return moves;
