@@ -11,7 +11,7 @@
 // frozen 2x2 blocks. Everything is deterministic -- fixed direction order, sorted boxes, no clock and no randomness --
 // so the two grading executions produce byte-identical answers.
 
-import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const INPUT_DIR = process.env.MAKEFUN_INPUT_DIR ?? '/input';
@@ -175,12 +175,22 @@ function solvePushOptimal(level, maxStates = MAX_STATES) {
   const solved = (bs) => bs.every((b) => goal[b] === 1);
   if (level.boxes.some((b) => !live[b])) return null;
 
-  // Exact while size ** (boxes + 1) < 2 ** 53 (a room has at most four boxes on a board of at most a few hundred cells).
-  const keyOf = (boxes, low) => {
-    let k = low;
-    for (const b of boxes) k = k * size + b;
-    return k;
-  };
+  // A numeric state key is exact only while size ** (boxes + 1) stays below 2 ** 53. A room (at most four boxes) always
+  // is; the whole-board fallback can hold every box of a level, so use BigInt keys there instead of letting two distinct
+  // states collide into one map entry and turning a push-optimal search into a wrong answer.
+  const numericKeyIsExact = Math.pow(size, level.boxes.length + 1) <= Number.MAX_SAFE_INTEGER;
+  const keyOf = numericKeyIsExact
+    ? (boxes, low) => {
+        let k = low;
+        for (const b of boxes) k = k * size + b;
+        return k;
+      }
+    : (boxes, low) => {
+        let k = BigInt(low);
+        const base = BigInt(size);
+        for (const b of boxes) k = k * base + BigInt(b);
+        return k;
+      };
 
   const statesBoxes = [level.boxes];
   const statesPlayer = [level.player];
@@ -363,7 +373,11 @@ function solveLevel(level) {
 }
 
 for (const id of readdirSync(INPUT_DIR).sort()) {
-  const level = parseLevel(readFileSync(join(INPUT_DIR, id, 'level.txt'), 'utf8'));
+  const instanceDir = join(INPUT_DIR, id);
+  // /input normally holds only i001..i005 directories; ignore any stray file so one unexpected entry cannot abort the
+  // whole set (an unanswered instance would lose the whole reward).
+  if (!statSync(instanceDir).isDirectory()) continue;
+  const level = parseLevel(readFileSync(join(instanceDir, 'level.txt'), 'utf8'));
   const moves = solveLevel(level);
   const outDir = join(OUTPUT_DIR, id);
   mkdirSync(outDir, { recursive: true });
